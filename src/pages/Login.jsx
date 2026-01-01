@@ -92,7 +92,7 @@ const Login = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="w-full max-w-2xl mx-auto relative z-10"
+            className="w-full max-w-3xl mx-auto relative z-10"
           >
             {/* Card */}
             <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">

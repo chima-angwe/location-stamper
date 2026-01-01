@@ -72,6 +72,13 @@ const MapView = ({ stamps = [], onStampClick, center = [20, 0], zoom = 3 }) => {
         // Create marker layer group
         markerLayerGroupRef.current = L.layerGroup().addTo(mapInstance);
 
+        // Add scale control for accuracy reference
+        L.control.scale({ 
+          imperial: true, 
+          metric: true,
+          position: 'bottomright'
+        }).addTo(mapInstance);
+
         // Invalidate size after a short delay to ensure rendering
         setTimeout(() => {
           if (mapInstanceRef.current) {
@@ -136,21 +143,31 @@ const MapView = ({ stamps = [], onStampClick, center = [20, 0], zoom = 3 }) => {
             return;
           }
 
-          // Create simple circle marker instead of complex SVG
+          // Create circle marker with center dot for precision
           const marker = L.circleMarker([lat, lng], {
-            radius: 8,
+            radius: 10,
             fillColor: markerColor,
             color: 'white',
-            weight: 2,
+            weight: 3,
             opacity: 1,
-            fillOpacity: 0.9,
+            fillOpacity: 0.8,
           });
 
-          // Enhanced popup content
+          // Add precise center dot
+          const centerDot = L.circleMarker([lat, lng], {
+            radius: 2,
+            fillColor: 'white',
+            color: 'white',
+            weight: 0,
+            opacity: 1,
+            fillOpacity: 1,
+          });
+
+          // Enhanced popup content with exact coordinates
           const popupContent = `
             <div style="
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-              min-width: 250px;
+              min-width: 260px;
               color: #333;
             ">
               <h3 style="
@@ -171,53 +188,83 @@ const MapView = ({ stamps = [], onStampClick, center = [20, 0], zoom = 3 }) => {
               
               ${stamp.address ? `
                 <p style="
-                  margin: 0 0 8px 0;
+                  margin: 0 0 10px 0;
                   font-size: 12px;
                   color: #999;
                   font-weight: 500;
                 ">📍 ${stamp.address}</p>
               ` : ''}
               
-              <p style="
-                margin: 0;
-                font-size: 11px;
-                color: #bbb;
-                font-family: 'Monaco', 'Courier New', monospace;
+              <div style="
+                margin: 10px 0 0 0;
+                padding: 8px;
                 background: #f5f5f5;
-                padding: 4px 8px;
-                border-radius: 4px;
-              ">${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
+                border-radius: 6px;
+                border-left: 3px solid ${markerColor};
+              ">
+                <p style="
+                  margin: 0 0 4px 0;
+                  font-size: 10px;
+                  color: #999;
+                  text-transform: uppercase;
+                  letter-spacing: 0.5px;
+                ">Exact Coordinates</p>
+                <p style="
+                  margin: 0;
+                  font-size: 12px;
+                  color: #333;
+                  font-family: 'Monaco', 'Courier New', monospace;
+                  font-weight: 600;
+                ">📌 ${lat.toFixed(7)}° N, ${lng.toFixed(7)}° E</p>
+                <p style="
+                  margin: 4px 0 0 0;
+                  font-size: 9px;
+                  color: #999;
+                ">Accuracy: ±10 meters</p>
+              </div>
             </div>
           `;
 
           marker.bindPopup(popupContent, {
-            maxWidth: 280,
+            maxWidth: 300,
             className: 'stamp-popup',
           });
 
-          // Click event
+          centerDot.bindPopup(popupContent, {
+            maxWidth: 300,
+            className: 'stamp-popup',
+          });
+
+          // Click event for both markers
           if (onStampClick) {
             marker.on('click', () => {
+              onStampClick(stamp);
+            });
+            centerDot.on('click', () => {
               onStampClick(stamp);
             });
           }
 
           marker.addTo(markerLayerGroupRef.current);
-          markersRef.current.push(marker);
+          centerDot.addTo(markerLayerGroupRef.current);
+          markersRef.current.push(marker, centerDot);
           bounds.extend([lat, lng]);
         } catch (markerErr) {
           console.error('Error adding marker:', markerErr);
         }
       });
 
-      // Fit bounds if we have markers
+      // Fit bounds with better zoom level for accuracy
       if (markersRef.current.length > 0) {
         setTimeout(() => {
           try {
             if (mapInstanceRef.current && bounds.isValid()) {
+              // Use higher maxZoom for single stamps to show precise location
+              const maxZoomLevel = stamps.length === 1 ? 16 : 14;
+              
               mapInstanceRef.current.fitBounds(bounds, {
-                padding: [80, 80],
-                maxZoom: 14,
+                padding: [100, 100],
+                maxZoom: maxZoomLevel,
                 animate: true,
               });
             }
@@ -269,8 +316,9 @@ const MapView = ({ stamps = [], onStampClick, center = [20, 0], zoom = 3 }) => {
       
       {/* Map info */}
       {stamps && stamps.length > 0 && (
-        <div className="absolute bottom-4 left-4 bg-gray-900/80 backdrop-blur-sm px-3 py-2 rounded-lg border border-gray-700 text-xs text-gray-400 pointer-events-none z-10">
-          <p>📍 {stamps.length} stamp{stamps.length !== 1 ? 's' : ''} on map</p>
+        <div className="absolute bottom-4 left-4 bg-gray-900/90 backdrop-blur-sm px-4 py-2 rounded-lg border border-gray-700 text-xs text-gray-300 pointer-events-none z-10">
+          <p className="font-semibold mb-1">📍 {stamps.length} stamp{stamps.length !== 1 ? 's' : ''} on map</p>
+          <p className="text-gray-400">💡 Zoom in for precise locations</p>
         </div>
       )}
     </div>

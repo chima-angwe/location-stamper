@@ -12,8 +12,7 @@ import { CATEGORIES } from "../../utils/constants";
 import {
   MyLocationOutlined,
   PhotoCameraOutlined,
-  MapOutlined,
-  CloudUploadOutlined,
+  OpenInNewOutlined,
 } from "@mui/icons-material";
 
 const StampForm = ({ onSuccess, onCancel, initialData = null }) => {
@@ -37,7 +36,7 @@ const StampForm = ({ onSuccess, onCancel, initialData = null }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [locationAccuracy, setLocationAccuracy] = useState(null);
 
   useEffect(() => {
     if (initialData) {
@@ -63,6 +62,10 @@ const StampForm = ({ onSuccess, onCancel, initialData = null }) => {
         latitude: coords.latitude,
         longitude: coords.longitude,
       }));
+      setLocationAccuracy(coords.accuracy);
+
+      // Show success message with coordinates
+      console.log("📍 Location set:", coords.latitude, coords.longitude);
     }
   }, [coords]);
 
@@ -78,7 +81,6 @@ const StampForm = ({ onSuccess, onCancel, initialData = null }) => {
       return;
     }
     setPhotoFiles((prev) => [...prev, ...files]);
-    setError(""); // Clear error on successful selection
   };
 
   const removePhoto = (index) => {
@@ -93,33 +95,27 @@ const StampForm = ({ onSuccess, onCancel, initialData = null }) => {
     if (photoFiles.length === 0) return [];
 
     setUploading(true);
-    setUploadProgress(0);
     const uploadedUrls = [];
 
     try {
-      for (let i = 0; i < photoFiles.length; i++) {
-        const file = photoFiles[i];
-        try {
-          const response = await stampService.uploadPhoto(file);
-          if (response.success && response.data?.url) {
-            uploadedUrls.push(response.data.url);
-          } else if (response.data?.url) {
-            uploadedUrls.push(response.data.url);
-          }
-          setUploadProgress(((i + 1) / photoFiles.length) * 100);
-        } catch (uploadErr) {
-          console.error(`Failed to upload photo ${i + 1}:`, uploadErr);
-          setError(
-            `Failed to upload photo ${i + 1}. Continuing with other photos...`
-          );
+      for (const file of photoFiles) {
+        const response = await stampService.uploadPhoto(file);
+        if (response.success) {
+          uploadedUrls.push(response.data.url);
         }
       }
       return uploadedUrls;
     } catch (err) {
-      throw new Error("Failed to upload some photos");
+      throw new Error("Failed to upload photos");
     } finally {
       setUploading(false);
-      setUploadProgress(0);
+    }
+  };
+
+  const verifyLocation = () => {
+    if (formData.latitude && formData.longitude) {
+      const url = `https://www.google.com/maps?q=${formData.latitude},${formData.longitude}`;
+      window.open(url, "_blank");
     }
   };
 
@@ -129,18 +125,6 @@ const StampForm = ({ onSuccess, onCancel, initialData = null }) => {
     setLoading(true);
 
     try {
-      if (!formData.title.trim()) {
-        setError("Title is required");
-        setLoading(false);
-        return;
-      }
-
-      if (!formData.latitude || !formData.longitude) {
-        setError("Location coordinates are required");
-        setLoading(false);
-        return;
-      }
-
       // Upload new photos
       const newPhotoUrls = await uploadPhotos();
       const allPhotos = [...photos, ...newPhotoUrls];
@@ -160,165 +144,145 @@ const StampForm = ({ onSuccess, onCancel, initialData = null }) => {
 
       onSuccess();
     } catch (err) {
-      console.error("Error saving stamp:", err);
-      setError(
-        err.response?.data?.error || err.message || "Failed to save stamp"
-      );
+      setError(err.response?.data?.error || "Failed to save stamp");
     } finally {
       setLoading(false);
     }
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.05,
-        delayChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 10 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { type: "spring", stiffness: 100, damping: 15 },
-    },
-  };
-
   return (
     <motion.form
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       onSubmit={handleSubmit}
-      className="space-y-6"
+      className="space-y-4"
     >
       {error && (
-        <motion.div variants={itemVariants}>
-          <Alert type="error" message={error} onClose={() => setError("")} />
-        </motion.div>
+        <Alert type="error" message={error} onClose={() => setError("")} />
       )}
-      {gpsError && (
-        <motion.div variants={itemVariants}>
-          <Alert type="error" message={gpsError} />
-        </motion.div>
-      )}
+      {gpsError && <Alert type="error" message={gpsError} />}
 
       {/* Title */}
-      <motion.div variants={itemVariants}>
-        <Input
-          label="Title"
-          name="title"
-          value={formData.title}
-          onChange={handleChange}
-          placeholder="e.g., Central Park"
-          required
-        />
-      </motion.div>
+      <Input
+        label="Title"
+        name="title"
+        value={formData.title}
+        onChange={handleChange}
+        placeholder="e.g., Central Park"
+        required
+      />
 
       {/* Description */}
-      <motion.div variants={itemVariants}>
-        <Textarea
-          label="Description"
-          name="description"
-          value={formData.description}
-          onChange={handleChange}
-          placeholder="Brief description of this location"
-          rows={3}
-        />
-      </motion.div>
+      <Textarea
+        label="Description"
+        name="description"
+        value={formData.description}
+        onChange={handleChange}
+        placeholder="Brief description of this location"
+        rows={3}
+      />
 
-      {/* GPS Coordinates Section */}
-      <motion.div variants={itemVariants}>
-        <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 border border-gray-700">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg">
-              <MapOutlined className="text-white" />
-            </div>
-            <h3 className="font-semibold text-lg text-white">Location</h3>
-          </div>
-
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                name="latitude"
-                type="number"
-                step="any"
-                value={formData.latitude}
-                onChange={handleChange}
-                placeholder="Latitude"
-                required
-              />
-              <Input
-                name="longitude"
-                type="number"
-                step="any"
-                value={formData.longitude}
-                onChange={handleChange}
-                placeholder="Longitude"
-                required
-              />
-            </div>
-
-            <motion.button
-              type="button"
-              onClick={getLocation}
-              disabled={gpsLoading}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold rounded-lg hover:shadow-lg hover:shadow-blue-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <MyLocationOutlined fontSize="small" />
-              {gpsLoading ? "Getting Location..." : "Use Current Location"}
-            </motion.button>
-          </div>
+      {/* GPS Coordinates */}
+      <div>
+        <label className="block text-sm font-medium mb-2">
+          GPS Coordinates <span className="text-red-500">*</span>
+        </label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input
+            name="latitude"
+            type="number"
+            step="any"
+            value={formData.latitude}
+            onChange={handleChange}
+            placeholder="Latitude (e.g., 6.5244)"
+            required
+          />
+          <Input
+            name="longitude"
+            type="number"
+            step="any"
+            value={formData.longitude}
+            onChange={handleChange}
+            placeholder="Longitude (e.g., 3.3792)"
+            required
+          />
         </div>
-      </motion.div>
+
+        <div className="flex gap-2 mt-2">
+          <Button
+            type="button"
+            onClick={getLocation}
+            disabled={gpsLoading}
+            loading={gpsLoading}
+            variant="outline"
+            className="flex-1"
+          >
+            <MyLocationOutlined fontSize="small" />
+            {gpsLoading ? "Getting Location..." : "Use Current Location"}
+          </Button>
+
+          {formData.latitude && formData.longitude && (
+            <Button type="button" onClick={verifyLocation} variant="outline">
+              <OpenInNewOutlined fontSize="small" />
+              Verify
+            </Button>
+          )}
+        </div>
+
+        {/* Location Info */}
+        {formData.latitude && formData.longitude && (
+          <div className="mt-3 p-3 bg-blue-900/30 border border-blue-500/50 rounded-lg text-sm">
+            <p className="font-semibold text-blue-400 mb-1">
+              📍 Location Detected
+            </p>
+            <p className="text-gray-300 font-mono text-xs mb-1">
+              {parseFloat(formData.latitude).toFixed(6)}°,{" "}
+              {parseFloat(formData.longitude).toFixed(6)}°
+            </p>
+            {locationAccuracy && (
+              <p className="text-gray-400 text-xs">
+                Accuracy: ±{locationAccuracy.toFixed(0)} meters
+              </p>
+            )}
+            <p className="text-gray-400 text-xs mt-2">
+              💡 Click "Verify" to check this location on Google Maps
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Address */}
-      <motion.div variants={itemVariants}>
-        <Input
-          label="Address"
-          name="address"
-          value={formData.address}
-          onChange={handleChange}
-          placeholder="e.g., New York, NY"
-        />
-      </motion.div>
+      <Input
+        label="Address"
+        name="address"
+        value={formData.address}
+        onChange={handleChange}
+        placeholder="e.g., Lagos, Nigeria"
+      />
 
       {/* Category */}
-      <motion.div variants={itemVariants}>
-        <Select
-          label="Category"
-          name="category"
-          value={formData.category}
-          onChange={handleChange}
-          options={CATEGORIES}
-          required
-        />
-      </motion.div>
+      <Select
+        label="Category"
+        name="category"
+        value={formData.category}
+        onChange={handleChange}
+        options={CATEGORIES}
+        required
+      />
 
       {/* Notes */}
-      <motion.div variants={itemVariants}>
-        <Textarea
-          label="Notes"
-          name="notes"
-          value={formData.notes}
-          onChange={handleChange}
-          placeholder="Additional notes about this location"
-          rows={4}
-        />
-      </motion.div>
+      <Textarea
+        label="Notes"
+        name="notes"
+        value={formData.notes}
+        onChange={handleChange}
+        placeholder="Additional notes about this location"
+        rows={4}
+      />
 
       {/* Photo Upload */}
-      <motion.div variants={itemVariants}>
-        <label className="block text-sm font-semibold text-white mb-3">
-          Photos <span className="text-gray-400">(Max 5)</span>
-        </label>
+      <div>
+        <label className="block text-sm font-medium mb-2">Photos (Max 5)</label>
         <input
           type="file"
           accept="image/*"
@@ -326,110 +290,51 @@ const StampForm = ({ onSuccess, onCancel, initialData = null }) => {
           onChange={handlePhotoChange}
           className="hidden"
           id="photo-upload"
-          disabled={uploading}
         />
         <label
           htmlFor="photo-upload"
-          className={`
-            flex flex-col items-center justify-center gap-3
-            w-full px-6 py-8 rounded-xl
-            bg-gradient-to-br from-gray-800 to-gray-900 border-2 border-dashed border-gray-700
-            ${
-              !uploading
-                ? "hover:border-blue-500 hover:from-gray-800/80 hover:to-gray-900/80 cursor-pointer"
-                : "opacity-60 cursor-not-allowed"
-            }
-            transition-all duration-300 group
-          `}
+          className="
+            flex items-center justify-center gap-2
+            w-full px-4 py-3 rounded-lg
+            bg-gray-700 border-2 border-dashed border-gray-600
+            hover:border-blue-500 cursor-pointer
+            transition-colors duration-200
+          "
         >
-          <div
-            className={`p-3 bg-blue-500/20 rounded-lg ${
-              uploading ? "" : "group-hover:bg-blue-500/30"
-            } transition-colors`}
-          >
-            <PhotoCameraOutlined className="text-blue-400 text-3xl" />
-          </div>
-          <div className="text-center">
-            <p className="text-white font-semibold">
-              {uploading ? "Uploading Photos..." : "Choose Photos"}
-            </p>
-            <p className="text-gray-400 text-sm mt-1">
-              {uploading
-                ? `${Math.round(uploadProgress)}% complete`
-                : "or drag and drop"}
-            </p>
-          </div>
-
-          {uploading && (
-            <div className="w-full bg-gray-700 rounded-full h-2 mt-4">
-              <motion.div
-                className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${uploadProgress}%` }}
-                transition={{ duration: 0.3 }}
-              />
-            </div>
-          )}
+          <PhotoCameraOutlined />
+          <span>Choose Photos</span>
         </label>
-
-        {(photos.length > 0 || photoFiles.length > 0) && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-4"
-          >
-            <ImagePreview
-              images={[...photos, ...photoFiles]}
-              onRemove={removePhoto}
-            />
-          </motion.div>
-        )}
-      </motion.div>
+        <ImagePreview
+          images={[...photos, ...photoFiles]}
+          onRemove={removePhoto}
+        />
+      </div>
 
       {/* Action Buttons */}
-      <motion.div
-        variants={itemVariants}
-        className="flex gap-4 pt-6 border-t border-gray-700"
-      >
-        <motion.div
-          whileHover={{ scale: !loading && !uploading ? 1.02 : 1 }}
-          whileTap={{ scale: !loading && !uploading ? 0.98 : 1 }}
-          className="flex-1"
+      <div className="flex gap-4 pt-4">
+        <Button
+          type="submit"
+          disabled={loading || uploading}
+          loading={loading || uploading}
+          fullWidth
         >
-          <button
-            type="submit"
-            disabled={loading || uploading}
-            className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold rounded-lg hover:shadow-lg hover:shadow-blue-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {uploading ? (
-              <>
-                <CloudUploadOutlined fontSize="small" />
-                Uploading Photos...
-              </>
-            ) : loading ? (
-              <>Saving Stamp...</>
-            ) : (
-              <>{initialData ? "Update Stamp" : "Create Stamp"}</>
-            )}
-          </button>
-        </motion.div>
+          {uploading
+            ? "Uploading Photos..."
+            : initialData
+            ? "Update Stamp"
+            : "Create Stamp"}
+        </Button>
         {onCancel && (
-          <motion.div
-            whileHover={{ scale: !loading && !uploading ? 1.02 : 1 }}
-            whileTap={{ scale: !loading && !uploading ? 0.98 : 1 }}
-            className="flex-1"
+          <Button
+            type="button"
+            onClick={onCancel}
+            variant="secondary"
+            fullWidth
           >
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={loading || uploading}
-              className="w-full px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Cancel
-            </button>
-          </motion.div>
+            Cancel
+          </Button>
         )}
-      </motion.div>
+      </div>
     </motion.form>
   );
 };
