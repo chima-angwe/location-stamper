@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #3B82F6;
+  --secondary: #FFFFFF;
+  --dominant: #1F2937;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --font-sans: "Inter", sans-serif;
+  --font-mono: "Fira Code", monospace;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--dominant);
+  color: var(--secondary);
+  font-family: var(--font-sans);
+}
+
+.container-custom {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0 1rem;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  transition: all 200ms;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background-color: #2563eb;
+}
